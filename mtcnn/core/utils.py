@@ -40,6 +40,7 @@ def convert_to_square(bbox):
     -------
     square bbox
     """
+    bbox = bbox[np.where((bbox[:, 3] > bbox[:, 1]) & (bbox[:, 2] > bbox[:, 0]))]
     square_bbox = bbox.copy()
 
     h = bbox[:, 3] - bbox[:, 1] + 1

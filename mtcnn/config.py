@@ -1,8 +1,9 @@
 import os
 
 DATA_ROOT = '/web2/ding/face/'
+MODULE_DIR = os.path.dirname(os.path.realpath(__file__))
 
-MODEL_STORE_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))+"/model_store"
+MODEL_STORE_DIR = DATA_ROOT+"/models"
 
 
 #ANNO_STORE_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))+"/anno_store"
@@ -41,3 +42,7 @@ ONET_LANDMARK_ANNO_FILENAME = "landmark_48.txt"
 PNET_TRAIN_IMGLIST_FILENAME = "imglist_anno_12.txt"
 RNET_TRAIN_IMGLIST_FILENAME = "imglist_anno_24.txt"
 ONET_TRAIN_IMGLIST_FILENAME = "imglist_anno_48.txt"
+
+PNET_MODEL_PATH = os.path.join(MODULE_DIR,'models/pnet_epoch.pt')
+RNET_MODEL_PATH = os.path.join(MODULE_DIR,'models/rnet_epoch.pt')
+ONET_MODEL_PATH = os.path.join(MODULE_DIR,'models/onet_epoch.pt')

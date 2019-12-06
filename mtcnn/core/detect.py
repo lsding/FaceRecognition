@@ -86,6 +86,7 @@ class MtcnnDetector(object):
         -------
             square bbox
         """
+        bbox = bbox[np.where((bbox[:, 3]> bbox[:, 1])&(bbox[:, 2] > bbox[:, 0]))]
         square_bbox = bbox.copy()
 
         h = bbox[:, 3] - bbox[:, 1] + 1
@@ -96,9 +97,6 @@ class MtcnnDetector(object):
 
         square_bbox[:, 2] = square_bbox[:, 0] + l - 1
         square_bbox[:, 3] = square_bbox[:, 1] + l - 1
-        sh = square_bbox[:, 3] - square_bbox[:, 1] + 1
-        sw = square_bbox[:, 2] - square_bbox[:, 0] + 1
-        square_bbox = square_bbox[np.where((sh>=12 )& (sw>=12))]
         return square_bbox
 
     def generate_bounding_box(self, map, reg, scale, threshold):
@@ -282,8 +280,8 @@ class MtcnnDetector(object):
         all_boxes = np.vstack(all_boxes)
 
         # merge the detection from first stage
-        keep = utils.nms(all_boxes[:, 0:5], 0.7, 'Union')
-        all_boxes = all_boxes[keep]
+        # keep = utils.nms(all_boxes[:, 0:5], 0.7, 'Union')
+        # all_boxes = all_boxes[keep]
         # boxes = all_boxes[:, :5]
 
         bw = all_boxes[:, 2] - all_boxes[:, 0] + 1
@@ -310,10 +308,10 @@ class MtcnnDetector(object):
 
         boxes = boxes.T
 
-        align_topx = all_boxes[:, 0] + all_boxes[:, 5] * bw
-        align_topy = all_boxes[:, 1] + all_boxes[:, 6] * bh
-        align_bottomx = all_boxes[:, 2] + all_boxes[:, 7] * bw
-        align_bottomy = all_boxes[:, 3] + all_boxes[:, 8] * bh
+        align_topx = np.maximum(all_boxes[:, 0] + all_boxes[:, 5] * bw, 0)
+        align_topy = np.maximum(all_boxes[:, 1] + all_boxes[:, 6] * bh, 0)
+        align_bottomx = np.minimum(all_boxes[:, 2] + all_boxes[:, 7] * bw, w)
+        align_bottomy = np.minimum(all_boxes[:, 3] + all_boxes[:, 8] * bh,h)
 
         # refine the boxes
         boxes_align = np.vstack([align_topx,
@@ -333,7 +331,8 @@ class MtcnnDetector(object):
                                  # align_topy + all_boxes[:,18] * bh,
                                  ])
         boxes_align = boxes_align.T
-
+        keep = utils.nms(boxes_align, 0.7, 'Union')
+        boxes_align = boxes_align[keep]
         return boxes, boxes_align
 
     def detect_rnet(self, im, dets):
@@ -356,14 +355,15 @@ class MtcnnDetector(object):
         h, w, c = im.shape
 
         if dets is None:
-            return np.array([]),np.array([])
-            # return None, None
-        dets1=dets.copy()
+            # return np.array([]),np.array([])
+            return None, None
         dets = self.square_bbox(dets)
         dets[:, 0:4] = np.round(dets[:, 0:4])
 
         [dy, edy, dx, edx, y, ey, x, ex, tmpw, tmph] = self.pad(dets, w, h)
         num_boxes = dets.shape[0]
+        if num_boxes == 0:
+            return  None, None
 
         '''
         # helper for setting RNet batch size
@@ -377,18 +377,12 @@ face candidates:%d, current batch_size:%d"%(num_boxes, batch_size)
         # cropped_ims_tensors = np.zeros((num_boxes, 3, 24, 24), dtype=np.float32)
         cropped_ims_tensors = []
         for i in range(num_boxes):
-            try:
-                tmp = np.zeros((tmph[i], tmpw[i], 3), dtype=np.uint8)
-                tmp[dy[i]:edy[i] + 1, dx[i]:edx[i] + 1, :] = im[y[i]:ey[i] + 1, x[i]:ex[i] + 1, :]
-                crop_im = cv2.resize(tmp, (24, 24))
-                crop_im_tensor = image_tools.convert_image_to_tensor(crop_im)
-                # cropped_ims_tensors[i, :, :, :] = crop_im_tensor
-                cropped_ims_tensors.append(crop_im_tensor)
-            except Exception as e:
-                print(len(dets1),len(dets),tmph[i], tmpw[i])
-                print(dets1[i],dets[i])
-                print(dy[i], edy[i], dx[i], edx[i], y[i], ey[i], x[i], ex[i], tmpw[i], tmph[i])
-                raise
+            tmp = np.zeros((tmph[i], tmpw[i], 3), dtype=np.uint8)
+            tmp[dy[i]:edy[i] + 1, dx[i]:edx[i] + 1, :] = im[y[i]:ey[i] + 1, x[i]:ex[i] + 1, :]
+            crop_im = cv2.resize(tmp, (24, 24))
+            crop_im_tensor = image_tools.convert_image_to_tensor(crop_im)
+            # cropped_ims_tensors[i, :, :, :] = crop_im_tensor
+            cropped_ims_tensors.append(crop_im_tensor)
         feed_imgs = Variable(torch.stack(cropped_ims_tensors).float())
 
         if self.rnet_detector.use_cuda:
@@ -408,65 +402,48 @@ face candidates:%d, current batch_size:%d"%(num_boxes, batch_size)
             reg = reg[keep_inds]
             # landmark = landmark[keep_inds]
         else:
-            return np.array([]), np.array([])
-            # return None, None
+            # return np.array([]), np.array([])
+            return None, None
 
-        keep = utils.nms(boxes, 0.7)
-
-        if len(keep) == 0:
-            return np.array([]), np.array([])
-            # return None, None
-
-        keep_cls = cls[keep]
-        keep_boxes = boxes[keep]
-        keep_reg = reg[keep]
+        # keep = utils.nms(boxes, 0.7)
+        #
+        #     # return None, None
+        #
+        # keep_cls = cls
+        # keep_boxes = boxes
+        # keep_reg = reg
         # keep_landmark = landmark[keep]
 
-        bw = keep_boxes[:, 2] - keep_boxes[:, 0] + 1
-        bh = keep_boxes[:, 3] - keep_boxes[:, 1] + 1
+        bw = boxes[:, 2] - boxes[:, 0] + 1
+        bh = boxes[:, 3] - boxes[:, 1] + 1
 
-        boxes = np.vstack([keep_boxes[:, 0],
-                           keep_boxes[:, 1],
-                           keep_boxes[:, 2],
-                           keep_boxes[:, 3],
-                           keep_cls[:, 0],
-                           # keep_boxes[:,0] + keep_landmark[:, 0] * bw,
-                           # keep_boxes[:,1] + keep_landmark[:, 1] * bh,
-                           # keep_boxes[:,0] + keep_landmark[:, 2] * bw,
-                           # keep_boxes[:,1] + keep_landmark[:, 3] * bh,
-                           # keep_boxes[:,0] + keep_landmark[:, 4] * bw,
-                           # keep_boxes[:,1] + keep_landmark[:, 5] * bh,
-                           # keep_boxes[:,0] + keep_landmark[:, 6] * bw,
-                           # keep_boxes[:,1] + keep_landmark[:, 7] * bh,
-                           # keep_boxes[:,0] + keep_landmark[:, 8] * bw,
-                           # keep_boxes[:,1] + keep_landmark[:, 9] * bh,
+
+        align_topx = np.maximum(boxes[:, 0] + reg[:, 0] * bw, 0)
+        align_topy = np.maximum(boxes[:, 1] + reg[:, 1] * bh,0)
+        align_bottomx = np.minimum(boxes[:, 2] + reg[:, 2] * bw, w)
+        align_bottomy = np.minimum(boxes[:, 3] + reg[:, 3] * bh, h)
+
+        boxes = np.vstack([boxes[:, 0],
+                           boxes[:, 1],
+                           boxes[:, 2],
+                           boxes[:, 3],
+                           cls[:, 0],
                            ])
-
-        align_topx = keep_boxes[:, 0] + keep_reg[:, 0] * bw
-        align_topy = keep_boxes[:, 1] + keep_reg[:, 1] * bh
-        align_bottomx = keep_boxes[:, 2] + keep_reg[:, 2] * bw
-        align_bottomy = keep_boxes[:, 3] + keep_reg[:, 3] * bh
 
         boxes_align = np.vstack([align_topx,
                                  align_topy,
                                  align_bottomx,
                                  align_bottomy,
-                                 keep_cls[:, 0],
-                                 # align_topx + keep_landmark[:, 0] * bw,
-                                 # align_topy + keep_landmark[:, 1] * bh,
-                                 # align_topx + keep_landmark[:, 2] * bw,
-                                 # align_topy + keep_landmark[:, 3] * bh,
-                                 # align_topx + keep_landmark[:, 4] * bw,
-                                 # align_topy + keep_landmark[:, 5] * bh,
-                                 # align_topx + keep_landmark[:, 6] * bw,
-                                 # align_topy + keep_landmark[:, 7] * bh,
-                                 # align_topx + keep_landmark[:, 8] * bw,
-                                 # align_topy + keep_landmark[:, 9] * bh,
+                                 cls[:, 0],
                                  ])
 
         boxes = boxes.T
         boxes_align = boxes_align.T
-
+        keep = utils.nms(boxes_align, 0.7)
+        if len(keep) == 0:
+            # return np.array([]), np.array([])
+            return None,None
+        boxes_align = boxes_align[keep]
         return boxes, boxes_align
 
     def detect_onet(self, im, dets):

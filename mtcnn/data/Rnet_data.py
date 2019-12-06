@@ -199,7 +199,7 @@ def parse_args():
     parser.add_argument('--anno_file', dest='annotation_file', help='wider face original annotation file',
                         default=os.path.join(config.ANNO_STORE_DIR,"../anno.txt"), type=str)
     parser.add_argument('--pmodel_file', dest='pnet_model_file', help='PNet model file path',
-                        default='pnet_epoch_15.pt', type=str)
+                        default='pnet_epoch.pt', type=str)
     parser.add_argument('--gpu', dest='use_cuda', help='with gpu',
                         default=config.USE_CUDA, type=bool)
     parser.add_argument('--prefix_path', dest='prefix_path', help='annotation file image prefix root path',

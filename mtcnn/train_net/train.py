@@ -126,7 +126,7 @@ def train_rnet(model_store_path, end_epoch,imdb,
 
     lossfn = LossFn()
     net = RNet(is_train=True, use_cuda=use_cuda)
-    checkpoint = torch.load('model_store/rnet_epoch_10.pt')
+    checkpoint = torch.load('model_store/rnet_epoch.pt')
     net.load_state_dict(checkpoint)
     net.train()
     if use_cuda:
@@ -245,7 +245,7 @@ def train_onet(model_store_path, end_epoch,imdb,
         for batch_idx,(image,(gt_label,gt_bbox,gt_landmark))in enumerate(train_data):
 
             im_tensor = [ image_tools.convert_image_to_tensor(image[i,:,:,:]) for i in range(image.shape[0]) ]
-            im_tensor = torch.stack(im_tensor)
+            im_tensor = torch.stack(im_tensor).float()
 
             im_tensor = Variable(im_tensor)
             gt_label = Variable(torch.from_numpy(gt_label).float())
@@ -271,13 +271,18 @@ def train_onet(model_store_path, end_epoch,imdb,
             if batch_idx%frequent==0:
                 accuracy=compute_accuracy(cls_pred,gt_label)
 
-                show1 = accuracy.data.tolist()[0]
-                show2 = cls_loss.data.tolist()[0]
-                show3 = box_offset_loss.data.tolist()[0]
-                show4 = landmark_loss.data.tolist()[0]
-                show5 = all_loss.data.tolist()[0]
+                # show1 = accuracy.data.tolist()[0]
+                # show2 = cls_loss.data.tolist()[0]
+                # show3 = box_offset_loss.data.tolist()[0]
+                # show4 = landmark_loss.data.tolist()[0]
+                # show5 = all_loss.data.tolist()[0]
+                show1 = accuracy.item()
+                show2 = cls_loss.item()
+                show3 = box_offset_loss.item()
+                show4 = landmark_loss.item()
+                show5 = all_loss.item()
 
-                print("%s : Epoch: %d, Step: %d, accuracy: %s, det loss: %s, bbox loss: %s, landmark loss: %s, all_loss: %s, lr:%s "%(datetime.datetime.now(),cur_epoch,batch_idx, show1,show2,show3,show4,show5,base_lr))
+                print("%s : Epoch: %d, Step: %d, accuracy: %.4f, det loss: %.4f, bbox loss: %.4f, landmark loss: %.4f, all_loss: %.4f, lr:%s "%(datetime.datetime.now(),cur_epoch,batch_idx, show1,show2,show3,show4,show5,base_lr))
                 accuracy_list.append(accuracy)
                 cls_loss_list.append(cls_loss)
                 bbox_loss_list.append(box_offset_loss)
@@ -288,15 +293,19 @@ def train_onet(model_store_path, end_epoch,imdb,
             optimizer.step()
 
 
-        accuracy_avg = torch.mean(torch.cat(accuracy_list))
-        cls_loss_avg = torch.mean(torch.cat(cls_loss_list))
-        bbox_loss_avg = torch.mean(torch.cat(bbox_loss_list))
-        landmark_loss_avg = torch.mean(torch.cat(landmark_loss_list))
+        accuracy_avg = torch.mean(torch.tensor(accuracy_list))
+        cls_loss_avg = torch.mean(torch.tensor(cls_loss_list))
+        bbox_loss_avg = torch.mean(torch.tensor(bbox_loss_list))
+        landmark_loss_avg = torch.mean(torch.tensor(landmark_loss_list))
 
-        show6 = accuracy_avg.data.tolist()[0]
-        show7 = cls_loss_avg.data.tolist()[0]
-        show8 = bbox_loss_avg.data.tolist()[0]
-        show9 = landmark_loss_avg.data.tolist()[0]
+        # show6 = accuracy_avg.data.tolist()[0]
+        # show7 = cls_loss_avg.data.tolist()[0]
+        # show8 = bbox_loss_avg.data.tolist()[0]
+        # show9 = landmark_loss_avg.data.tolist()[0]
+        show6 = accuracy_avg.item()
+        show7 = cls_loss_avg.item()
+        show8 = bbox_loss_avg.item()
+        show9 = landmark_loss_avg.item()
 
         print("Epoch: %d, accuracy: %s, cls loss: %s, bbox loss: %s, landmark loss: %s " % (cur_epoch, show6, show7, show8, show9))
         torch.save(net.state_dict(), os.path.join(model_store_path,"onet_epoch_%d.pt" % cur_epoch))
